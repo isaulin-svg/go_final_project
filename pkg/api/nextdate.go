@@ -40,7 +40,7 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 			if !next.Before(now.AddDate(0, 0, 1)) && next.After(start) {
 				break
 			}
-			// Условие After(now) более стандартное для тестов
+
 			if next.After(now) {
 				break
 			}
@@ -56,9 +56,6 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 			}
 		}
 		return next.Format(DateLayout), nil
-
-	// Если понадобятся правила "w" или "m", их нужно будет дописать здесь.
-	// Для базовых тестов "d" и "y" обычно достаточно.
 
 	default:
 		return "", errors.New("неподдерживаемый формат правила")

@@ -10,7 +10,7 @@ import (
 
 var DB *sql.DB
 
-// InitDB инициализирует базу данных и создает таблицу, если её нет
+// InitDB инициализирует базу данных и создает таблицу
 func InitDB() error {
 	dbFile := os.Getenv("TODO_DBFILE")
 	if dbFile == "" {

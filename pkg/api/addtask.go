@@ -62,7 +62,7 @@ func TaskHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// ВАЖНО: Проверка заголовка при редактировании (Шаг 6)
+		// Проверка заголовка при редактировании
 		if strings.TrimSpace(task.Title) == "" {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Не указан заголовок задачи"})
 			return
