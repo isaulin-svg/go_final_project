@@ -10,18 +10,27 @@ import (
 
 var DB *sql.DB
 
-// InitDB инициализирует базу данных и создает таблицу
 func InitDB() error {
 	dbFile := os.Getenv("TODO_DBFILE")
 	if dbFile == "" {
 		dbFile = "scheduler.db"
 	}
 
-	dbPath := filepath.Join(".", dbFile)
+	dbPath := dbFile
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		if _, err := os.Stat(filepath.Join("..", dbFile)); err == nil {
+			dbPath = filepath.Join("..", dbFile)
+		}
+	}
 
 	var err error
 	DB, err = sql.Open("sqlite", dbPath)
 	if err != nil {
+		return err
+	}
+
+	if err := DB.Ping(); err != nil {
+		DB.Close()
 		return err
 	}
 
@@ -36,5 +45,9 @@ func InitDB() error {
 	CREATE INDEX IF NOT EXISTS idx_date ON scheduler(date);
 	`
 	_, err = DB.Exec(query)
-	return err
+	if err != nil {
+		DB.Close()
+		return err
+	}
+	return nil
 }

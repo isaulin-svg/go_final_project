@@ -5,18 +5,24 @@ import (
 	"net/http"
 )
 
-// TasksHandler возвращает список задач с поддержкой поиска
+// DefaultTaskLimit — константа для ограничения количества задач
+const DefaultTaskLimit = 50
+
+// TasksHandler — обработчик получения списка задач
 func TasksHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Метод не поддерживается"})
+		return
+	}
+
 	search := r.URL.Query().Get("search")
 
-	// Устанавливаем лимит 50 задач согласно ТЗ
-	tasks, err := db.Tasks(50, search)
+	tasks, err := db.Tasks(DefaultTaskLimit, search)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 
-	// Фронтенд ожидает объект с ключом "tasks"
 	if tasks == nil {
 		tasks = []db.Task{}
 	}

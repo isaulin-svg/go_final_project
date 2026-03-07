@@ -14,6 +14,8 @@ type Task struct {
 	Repeat  string `json:"repeat"`
 }
 
+const DefaultTaskLimit = 50
+
 func AddTask(task Task) (int64, error) {
 	query := `INSERT INTO scheduler (date, title, comment, repeat) VALUES (?, ?, ?, ?)`
 	res, err := DB.Exec(query, task.Date, task.Title, task.Comment, task.Repeat)
@@ -26,7 +28,6 @@ func AddTask(task Task) (int64, error) {
 func Tasks(limit int, search string) ([]Task, error) {
 	var rows *sql.Rows
 	var err error
-	tasks := []Task{}
 
 	if search == "" {
 		rows, err = DB.Query("SELECT id, date, title, comment, repeat FROM scheduler ORDER BY date LIMIT ?", limit)
@@ -45,6 +46,7 @@ func Tasks(limit int, search string) ([]Task, error) {
 	}
 	defer rows.Close()
 
+	tasks := []Task{}
 	for rows.Next() {
 		var t Task
 		var id int64
@@ -54,6 +56,12 @@ func Tasks(limit int, search string) ([]Task, error) {
 		t.ID = fmt.Sprintf("%d", id)
 		tasks = append(tasks, t)
 	}
+
+	// Критически важная проверка ошибок после цикла
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return tasks, nil
 }
 
@@ -85,7 +93,6 @@ func UpdateTask(task Task) error {
 	return nil
 }
 
-// Новые функции для Шага 7
 func DeleteTask(id string) error {
 	res, err := DB.Exec("DELETE FROM scheduler WHERE id = ?", id)
 	if err != nil {

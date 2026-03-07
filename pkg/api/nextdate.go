@@ -11,6 +11,42 @@ import (
 
 const DateLayout = "20060102"
 
+// NextDateHandler — проверяет параметры и возвращает следующую дату
+func NextDateHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Метод не поддерживается"})
+		return
+	}
+
+	nowStr := r.URL.Query().Get("now")
+	dstart := r.URL.Query().Get("date")
+	repeat := r.URL.Query().Get("repeat")
+
+	var now time.Time
+	var err error
+
+	if nowStr == "" {
+		now = time.Now()
+	} else {
+		now, err = time.Parse(DateLayout, nowStr)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "неверный формат параметра now"})
+			return
+		}
+	}
+
+	nextDate, err := NextDate(now, dstart, repeat)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	// Здесь мы пишем чистую строку, так как тест ожидает просто текст, а не JSON
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(nextDate))
+}
+
+// NextDate — бизнес-логика расчета даты
 func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 	if repeat == "" {
 		return "", errors.New("правило повторения не указано")
@@ -37,55 +73,21 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 		next := start
 		for {
 			next = next.AddDate(0, 0, days)
-			if !next.Before(now.AddDate(0, 0, 1)) && next.After(start) {
-				break
-			}
-
 			if next.After(now) {
-				break
+				return next.Format(DateLayout), nil
 			}
 		}
-		return next.Format(DateLayout), nil
 
 	case "y":
 		next := start
 		for {
 			next = next.AddDate(1, 0, 0)
 			if next.After(now) {
-				break
+				return next.Format(DateLayout), nil
 			}
 		}
-		return next.Format(DateLayout), nil
 
 	default:
 		return "", errors.New("неподдерживаемый формат правила")
 	}
-}
-
-func NextDateHandler(w http.ResponseWriter, r *http.Request) {
-	nowStr := r.URL.Query().Get("now")
-	dstart := r.URL.Query().Get("date")
-	repeat := r.URL.Query().Get("repeat")
-
-	var now time.Time
-	var err error
-
-	if nowStr == "" {
-		now = time.Now()
-	} else {
-		now, err = time.Parse(DateLayout, nowStr)
-		if err != nil {
-			http.Error(w, "неверный формат параметра now", http.StatusBadRequest)
-			return
-		}
-	}
-
-	nextDate, err := NextDate(now, dstart, repeat)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(err.Error()))
-		return
-	}
-
-	w.Write([]byte(nextDate))
 }

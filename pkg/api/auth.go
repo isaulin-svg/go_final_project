@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
+
+// AppPassword теперь инициализируется один раз при запуске приложения в main.go
+var AppPassword string
 
 type AuthRequest struct {
 	Password string `json:"password"`
@@ -24,26 +26,29 @@ func GetPasswordHash(password string) string {
 
 // SigninHandler проверяет пароль и выдает JWT
 func SigninHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Метод не поддерживается"})
+		return
+	}
+
 	var req AuthRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Ошибка JSON"})
 		return
 	}
 
-	pass := os.Getenv("TODO_PASSWORD")
-	if req.Password != pass {
+	if req.Password != AppPassword {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Неверный пароль"})
 		return
 	}
 
-	// Создаем токен. В Claims кладем хеш пароля
 	claims := jwt.MapClaims{
-		"hash": GetPasswordHash(pass),
+		"hash": GetPasswordHash(AppPassword),
 		"exp":  time.Now().Add(time.Hour * 8).Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signedToken, err := token.SignedString([]byte(pass)) // Секрет - сам пароль
+	signedToken, err := token.SignedString([]byte(AppPassword))
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Ошибка создания токена"})
 		return
@@ -55,32 +60,31 @@ func SigninHandler(w http.ResponseWriter, r *http.Request) {
 // AuthMiddleware проверяет наличие и валидность токена
 func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		pass := os.Getenv("TODO_PASSWORD")
-
-		// Если пароль установлен в системе, проверяем авторизацию
-		if len(pass) > 0 {
-			cookie, err := r.Cookie("token")
-			if err != nil {
-				writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
-				return
-			}
-
-			tokenStr := cookie.Value
-			// Проверяем подпись токена
-			token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
-				if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-					return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
-				}
-				return []byte(pass), nil
-			})
-
-			if err != nil || !token.Valid {
-				writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
-				return
-			}
+		// Если пароль в системе не установлен, авторизация не требуется
+		if AppPassword == "" {
+			next(w, r)
+			return
 		}
 
-		// Если пароля нет в env или токен валиден — пропускаем дальше
+		cookie, err := r.Cookie("token")
+		if err != nil {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
+			return
+		}
+
+		tokenStr := cookie.Value
+		token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
+			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+			}
+			return []byte(AppPassword), nil
+		})
+
+		if err != nil || !token.Valid {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
+			return
+		}
+
 		next(w, r)
 	})
 }
